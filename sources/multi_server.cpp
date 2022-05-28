@@ -13,7 +13,7 @@
 #include <arpa/inet.h>
 #include <sys/wait.h>
 #include <signal.h>
-#include <pthread.h>
+//#include <pthread.h>
 #include "deque.hpp"
 #include "memory.hpp"
 
@@ -35,14 +35,16 @@ char const *func_names[] = {"POP", "TOP", "PUSH", "ENQUEUE", "DEQUEUE"};
 
 int POP(char **args)
 {
+    //TODO: use processes lock AND UNLOCK with fcntl instead
+    /* 
     pthread_mutex_t mut = PTHREAD_MUTEX_INITIALIZER;
     pthread_mutex_lock(&mut);
-
+    */
     _POP(deq);
     _print(deq); // Debugging
 
     printf("DEBUG: Got POP Request\n");
-    pthread_mutex_unlock(&mut);
+    //pthread_mutex_unlock(&mut);
 
     return 1;
 }
@@ -52,16 +54,18 @@ int TOP(char **args)
     printf("DEBUG: Got TOP Request\n");
 
     char buf[2048];
+    //TODO: use processes lock AND UNLOCK with fcntl instead
+    /*
     pthread_mutex_t mut = PTHREAD_MUTEX_INITIALIZER;
     pthread_mutex_lock(&mut);
-
+    */
     pnode top = _TOP(deq);
 
     if (top == NULL)
     {
         strcpy(buf, "DEQUE IS EMPTY! CANNOT RETRIEVE TOP!");
         send(new_sock, buf, strlen(buf), 0);
-        pthread_mutex_unlock(&mut);
+        //pthread_mutex_unlock(&mut);
         return 1;
     }
 
@@ -74,16 +78,18 @@ int TOP(char **args)
     strcpy(buf, "OUTPUT: ");
     strcat(buf, top->value);
     send(new_sock, buf, strlen(buf), 0);
-    pthread_mutex_unlock(&mut);
+    //pthread_mutex_unlock(&mut);
 
     return 1;
 }
 
 int PUSH(char **args)
 {
+    //TODO: use processes lock AND UNLOCK with fcntl instead
+    /*
     pthread_mutex_t mut = PTHREAD_MUTEX_INITIALIZER;
     pthread_mutex_lock(&mut);
-
+    */
     if (args[1] == NULL)
     {
         printf("ERROR: PUSH requires a value to push\n");
@@ -99,15 +105,18 @@ int PUSH(char **args)
     _PUSH(deq, node);
     _print(deq); // Debugging
 
-    pthread_mutex_unlock(&mut);
+    //pthread_mutex_unlock(&mut);
 
     return 1;
 }
 
 int ENQUEUE(char **args)
 {
+    //TODO: use processes lock AND UNLOCK with fcntl instead
+    /*
     pthread_mutex_t mut = PTHREAD_MUTEX_INITIALIZER;
     pthread_mutex_lock(&mut);
+    */
 
     if (args[1] == NULL)
     {
@@ -124,20 +133,23 @@ int ENQUEUE(char **args)
     _ENQUEUE(deq, node);
     _print(deq); // Debugging
 
-    pthread_mutex_unlock(&mut);
+    //pthread_mutex_unlock(&mut);
 
     return 1;
 }
 int DEQUEUE(char **args)
 {
+    //TODO: use processes lock AND UNLOCK with fcntl instead
+    /*
     pthread_mutex_t mut = PTHREAD_MUTEX_INITIALIZER;
     pthread_mutex_lock(&mut);
+    */
 
     _DEQUEUE(deq);
     printf("DEBUG: Got DEQUEUE Request\n");
     _print(deq); // Debugging
 
-    pthread_mutex_unlock(&mut);
+    //pthread_mutex_unlock(&mut);
 
     return 1;
 }
@@ -213,7 +225,7 @@ void *sock_thread(void *arg) /* ***************** THREAD HANDLER ***************
     }
 
     close(new_sock);
-    pthread_exit(NULL);
+    //pthread_exit(NULL);  //TODO: use processes lock AND UNLOCK with fcntl instead???
 }
 
 void sigchld_handler(int s)
@@ -336,18 +348,23 @@ int main(void)
         printf("server: got connection from %s\n", s);
 
         // create a new thread, assign it to our thread array and send the thread_id and socket FD to out thread handler
+        //TODO: use processes lock AND UNLOCK with fcntl instead
+        /*
         if (pthread_create(&new_thread[i++], NULL, sock_thread, &new_fd) != 0)
         {
             printf("ERROR: Failed To Create Thread!\n");
         }
-
+        */
         // Loop over our threads array and join all completed threads, freeing up resources
         if (i >= 10)
         {
             i = 0;
             while (i < 10)
             {
+                //TODO: use processes lock AND UNLOCK with fcntl instead
+                /*
                 pthread_join(new_thread[i++], NULL);
+                */
             }
             i = 0;
         }
