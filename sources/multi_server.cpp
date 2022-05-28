@@ -30,19 +30,22 @@ int new_sock = 0;
 
 /* *** Mutex Related *** */
 
+int _locker;
+struct flock _lock;
+
 void lock_mutex(char control)
 {
     if (control == 'w') // Set to Read + Write.
     {
-        lock.l_type = F_WRLCK;
+        _lock.l_type = F_WRLCK;
     }
 
     if (control == 'r') // Set to Read Only.
     {
-        lock.l_type = F_RDLCK;
+        _lock.l_type = F_RDLCK;
     }
 
-    if (fcntl(locker, F_SETLKW, &lock) == -1)
+    if (fcntl(_locker, F_SETLKW, &_lock) == -1)
     {
         perror("fcntl_lock");
         exit(1);
@@ -51,9 +54,9 @@ void lock_mutex(char control)
 
 void unlock_mutex()
 {
-    lock.l_type = F_UNLCK;
+    _lock.l_type = F_UNLCK;
 
-    if (fcntl(locker, F_SETLKW, &lock) == -1)
+    if (fcntl(_locker, F_SETLKW, &_lock) == -1)
     {
         perror("fcntl_lock");
         exit(1);
@@ -226,10 +229,10 @@ void *sock_proc(void *arg) /* ***************** PROCESS HANDLER ****************
     printf("DEBUG: New connection from %d\n", new_sock); // DEBUG ONLY
     sleep(1);
 
-    locker = open("lock.txt", O_RDWR | O_CREAT); // will either open the file in Read+Write mode OR create it if it does not exist. (and then open it in R+W)
+    _locker = open("lock.txt", O_RDWR | O_CREAT); // will either open the file in Read+Write mode OR create it if it does not exist. (and then open it in R+W)
     // also this is variable belongs to deque
 
-    if (locker < 0)
+    if (_locker < 0)
     {
         perror("cannot open file");
         exit(1); // exits because this should'nt happen
@@ -245,9 +248,10 @@ void *sock_proc(void *arg) /* ***************** PROCESS HANDLER ****************
         execute(args);
     }
 
-    close(locker);
+    close(_locker);
     close(new_sock);
-    // should raise SIGCHLD on it's own after this line.
+    return NULL;
+    // should raise SIGCHLD on it's own after return.
 }
 
 void sigchld_handler(int s)
@@ -353,7 +357,6 @@ int main(void)
 
     printf("server: waiting for connections...\n");
 
-    int i = 0;
     pid_t pid;
     while (1)
     { // main accept() loop

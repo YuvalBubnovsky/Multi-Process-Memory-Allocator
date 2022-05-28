@@ -1,3 +1,6 @@
+#ifndef DEQUE
+#define DEQUE
+
 #pragma once
 #include <stdio.h>
 #include <stdlib.h>
@@ -21,9 +24,6 @@ typedef struct dequeue
     pnode tail;
 }*pdeq;
 
-int locker;
-struct flock lock;
-
 void _print(pdeq deq); // control/debugging
 void _clear(pdeq deq); // control/debugging
 void _PUSH(pdeq deq, pnode node);
@@ -31,3 +31,5 @@ pnode _POP(pdeq deq);
 pnode _TOP(pdeq deq);
 void _ENQUEUE(pdeq deq, pnode node);
 pnode _DEQUEUE (pdeq deq);
+
+#endif
