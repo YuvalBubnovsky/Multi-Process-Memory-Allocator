@@ -25,43 +25,9 @@
 #define BACKLOG 10 // how many pending connections queue will hold
 
 // Defining global queue and sending socket for client globally
-pdeq deq = (pdeq)mmap(NULL, sizeof(deq), PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0); // 'Singleton'
+//pdeq deq = (pdeq)mmap(NULL, sizeof(deq), PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0); // 'Singleton'
 int new_sock = 0;
 
-/* *** Mutex Related *** */
-
-int _locker;
-struct flock _lock;
-
-void lock_mutex(char control)
-{
-    if (control == 'w') // Set to Read + Write.
-    {
-        _lock.l_type = F_WRLCK;
-    }
-
-    if (control == 'r') // Set to Read Only.
-    {
-        _lock.l_type = F_RDLCK;
-    }
-
-    if (fcntl(_locker, F_SETLKW, &_lock) == -1)
-    {
-        perror("fcntl_lock");
-        exit(1);
-    }
-}
-
-void unlock_mutex()
-{
-    _lock.l_type = F_UNLCK;
-
-    if (fcntl(_locker, F_SETLKW, &_lock) == -1)
-    {
-        perror("fcntl_lock");
-        exit(1);
-    }
-}
 
 /* *** Function Handlers *** */
 
@@ -69,13 +35,11 @@ char const *func_names[] = {"POP", "TOP", "PUSH", "ENQUEUE", "DEQUEUE"};
 
 int POP(char **args)
 {
-    lock_mutex('w'); // locks with writing permission
 
-    _POP(deq);
-    _print(deq); // Debugging
+    _POP();
+    _print(); // Debugging
     printf("DEBUG: Got POP Request\n");
 
-    unlock_mutex();
     return 1;
 }
 
@@ -84,8 +48,7 @@ int TOP(char **args)
     printf("DEBUG: Got TOP Request\n");
 
     char buf[2048];
-    lock_mutex('r'); // locks with reading permission
-    pnode top = _TOP(deq);
+    char* top = _TOP();
 
     if (top == NULL)
     {
@@ -98,44 +61,36 @@ int TOP(char **args)
     printf("DEBUG: Got TOP Request\n");
     if (top != NULL)
     {
-        printf("OUTPUT: Top Of The Stack Is: %s\n", top->value);
+        printf("OUTPUT: Top Of The Stack Is: %s\n", top);
     }
 
     strcpy(buf, "OUTPUT: ");
-    strcat(buf, top->value);
+    strcat(buf, top);
     send(new_sock, buf, strlen(buf), 0);
     // pthread_mutex_unlock(&mut);
 
-    unlock_mutex();
     return 1;
 }
 
 int PUSH(char **args)
 {
-    lock_mutex('w');
     if (args[1] == NULL)
     {
         printf("ERROR: PUSH requires a value to push\n");
         return 1;
     }
 
-    pnode node = (pnode)malloc(sizeof(pnode));
-    node->value = (char *)malloc(sizeof(char) * strlen(args[1]));
-    memcpy(node->value, args[1], strlen(args[1]));
-
     printf("DEBUG: Got PUSH Request\n");
 
-    _PUSH(deq, node);
-    _print(deq); // Debugging
+    _PUSH(args[1]);
+    _print(); // Debugging
 
-    unlock_mutex();
 
     return 1;
 }
 
 int ENQUEUE(char **args)
 {
-    lock_mutex('w');
 
     if (args[1] == NULL)
     {
@@ -143,28 +98,21 @@ int ENQUEUE(char **args)
         return 1;
     }
 
-    pnode node = (pnode)malloc(sizeof(pnode));
-    node->value = (char *)malloc(sizeof(char) * strlen(args[1]));
-    memcpy(node->value, args[1], strlen(args[1]));
-
     printf("DEBUG: Got ENQUEUE Request\n");
 
-    _ENQUEUE(deq, node);
-    _print(deq); // Debugging
+    _ENQUEUE(args[1]);
+    _print(); // Debugging
 
-    unlock_mutex();
 
     return 1;
 }
 int DEQUEUE(char **args)
 {
-    lock_mutex('w');
 
-    _DEQUEUE(deq);
+    _DEQUEUE();
     printf("DEBUG: Got DEQUEUE Request\n");
-    _print(deq); // Debugging
+    _print(); // Debugging
 
-    unlock_mutex();
 
     return 1;
 }
@@ -229,7 +177,7 @@ void *sock_proc(void *arg) /* ***************** PROCESS HANDLER ****************
     printf("DEBUG: New connection from %d\n", new_sock); // DEBUG ONLY
     sleep(1);
 
-    _locker = open("lock.txt", O_RDWR | O_CREAT); // will either open the file in Read+Write mode OR create it if it does not exist. (and then open it in R+W)
+    _locker = open("lock.txt", O_WRONLY | O_CREAT); // will either open the file in Read+Write mode OR create it if it does not exist. (and then open it in R+W)
     // also this is variable belongs to deque
 
     if (_locker < 0)
@@ -278,12 +226,6 @@ void *get_in_addr(struct sockaddr *sa)
 
 int main(void)
 {
-
-    // Setting initial values for Queue
-    deq->head = NULL;
-    deq->size = 0;
-    deq->tail = NULL;
-
     int sockfd, client_fd; // listen on sock_fd, new connection on client_fd
     struct addrinfo hints, *servinfo, *p;
     struct sockaddr_storage their_addr; // connector's address information
@@ -357,6 +299,9 @@ int main(void)
 
     printf("server: waiting for connections...\n");
 
+    _dm = (pdm)mmap(NULL, sizeof(pdm), PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
+    _dm->first=(pdeq)mmap(NULL, sizeof(pdeq)*10000, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
+
     pid_t pid;
     while (1)
     { // main accept() loop
@@ -386,7 +331,7 @@ int main(void)
         }
         else // if this is the PARENT Process
         {
-            usleep(1000);
+            sleep(1);
         }
     }
 
