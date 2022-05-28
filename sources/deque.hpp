@@ -1,6 +1,9 @@
 #pragma once
 #include <stdio.h>
 #include <stdlib.h>
+#include <sys/mman.h>
+#include <fcntl.h>
+#include <fstream> //is this needed?
 
 typedef struct node *pnode;
 
@@ -16,7 +19,10 @@ typedef struct dequeue
     size_t size;
     pnode head;
     pnode tail;
-}*pdeq; 
+}*pdeq;
+
+int locker;
+struct flock lock;
 
 void _print(pdeq deq); // control/debugging
 void _clear(pdeq deq); // control/debugging

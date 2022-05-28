@@ -2,7 +2,6 @@
 #define _POSIX_C_SOURCE 199309
 #define _XOPEN_SOURCE 600
 #include <stdio.h>
-//#include <stdlib.h>
 #include <unistd.h>
 #include <errno.h>
 #include <string.h>
@@ -14,7 +13,7 @@
 #include <sys/wait.h>
 #include <signal.h>
 //#include <pthread.h>
-#include "deque.hpp"
+#include "deque.hpp" //includes <stdlib.h> !
 #include "memory.hpp"
 
 #define PORT "3490" // the port users will be connecting to
@@ -26,26 +25,54 @@
 #define BACKLOG 10 // how many pending connections queue will hold
 
 // Defining global queue and sending socket for client globally
-pdeq deq = (pdeq)malloc(sizeof(pdeq)); // singleton
+pdeq deq = (pdeq)mmap(NULL, sizeof(deq), PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0); // 'Singleton'
 int new_sock = 0;
 
-// Function handlers
+/* *** Mutex Related *** */
+
+void lock_mutex(char control)
+{
+    if (control == 'w') // Set to Read + Write.
+    {
+        lock.l_type = F_WRLCK;
+    }
+
+    if (control == 'r') // Set to Read Only.
+    {
+        lock.l_type = F_RDLCK;
+    }
+
+    if (fcntl(locker, F_SETLKW, &lock) == -1)
+    {
+        perror("fcntl_lock");
+        exit(1);
+    }
+}
+
+void unlock_mutex()
+{
+    lock.l_type = F_UNLCK;
+
+    if (fcntl(locker, F_SETLKW, &lock) == -1)
+    {
+        perror("fcntl_lock");
+        exit(1);
+    }
+}
+
+/* *** Function Handlers *** */
 
 char const *func_names[] = {"POP", "TOP", "PUSH", "ENQUEUE", "DEQUEUE"};
 
 int POP(char **args)
 {
-    //TODO: use processes lock AND UNLOCK with fcntl instead
-    /* 
-    pthread_mutex_t mut = PTHREAD_MUTEX_INITIALIZER;
-    pthread_mutex_lock(&mut);
-    */
+    lock_mutex('w'); // locks with writing permission
+
     _POP(deq);
     _print(deq); // Debugging
-
     printf("DEBUG: Got POP Request\n");
-    //pthread_mutex_unlock(&mut);
 
+    unlock_mutex();
     return 1;
 }
 
@@ -54,18 +81,14 @@ int TOP(char **args)
     printf("DEBUG: Got TOP Request\n");
 
     char buf[2048];
-    //TODO: use processes lock AND UNLOCK with fcntl instead
-    /*
-    pthread_mutex_t mut = PTHREAD_MUTEX_INITIALIZER;
-    pthread_mutex_lock(&mut);
-    */
+    lock_mutex('r'); // locks with reading permission
     pnode top = _TOP(deq);
 
     if (top == NULL)
     {
         strcpy(buf, "DEQUE IS EMPTY! CANNOT RETRIEVE TOP!");
         send(new_sock, buf, strlen(buf), 0);
-        //pthread_mutex_unlock(&mut);
+        // pthread_mutex_unlock(&mut);
         return 1;
     }
 
@@ -78,18 +101,15 @@ int TOP(char **args)
     strcpy(buf, "OUTPUT: ");
     strcat(buf, top->value);
     send(new_sock, buf, strlen(buf), 0);
-    //pthread_mutex_unlock(&mut);
+    // pthread_mutex_unlock(&mut);
 
+    unlock_mutex();
     return 1;
 }
 
 int PUSH(char **args)
 {
-    //TODO: use processes lock AND UNLOCK with fcntl instead
-    /*
-    pthread_mutex_t mut = PTHREAD_MUTEX_INITIALIZER;
-    pthread_mutex_lock(&mut);
-    */
+    lock_mutex('w');
     if (args[1] == NULL)
     {
         printf("ERROR: PUSH requires a value to push\n");
@@ -105,18 +125,14 @@ int PUSH(char **args)
     _PUSH(deq, node);
     _print(deq); // Debugging
 
-    //pthread_mutex_unlock(&mut);
+    unlock_mutex();
 
     return 1;
 }
 
 int ENQUEUE(char **args)
 {
-    //TODO: use processes lock AND UNLOCK with fcntl instead
-    /*
-    pthread_mutex_t mut = PTHREAD_MUTEX_INITIALIZER;
-    pthread_mutex_lock(&mut);
-    */
+    lock_mutex('w');
 
     if (args[1] == NULL)
     {
@@ -133,23 +149,19 @@ int ENQUEUE(char **args)
     _ENQUEUE(deq, node);
     _print(deq); // Debugging
 
-    //pthread_mutex_unlock(&mut);
+    unlock_mutex();
 
     return 1;
 }
 int DEQUEUE(char **args)
 {
-    //TODO: use processes lock AND UNLOCK with fcntl instead
-    /*
-    pthread_mutex_t mut = PTHREAD_MUTEX_INITIALIZER;
-    pthread_mutex_lock(&mut);
-    */
+    lock_mutex('w');
 
     _DEQUEUE(deq);
     printf("DEBUG: Got DEQUEUE Request\n");
     _print(deq); // Debugging
 
-    //pthread_mutex_unlock(&mut);
+    unlock_mutex();
 
     return 1;
 }
@@ -204,7 +216,7 @@ int execute(char **args)
     return 1;
 }
 
-void *sock_thread(void *arg) /* ***************** THREAD HANDLER ***************** */
+void *sock_proc(void *arg) /* ***************** PROCESS HANDLER ***************** */
 {
     int n;
     char buffer[2048];
@@ -213,6 +225,15 @@ void *sock_thread(void *arg) /* ***************** THREAD HANDLER ***************
     bzero(buffer, 2048);
     printf("DEBUG: New connection from %d\n", new_sock); // DEBUG ONLY
     sleep(1);
+
+    locker = open("lock.txt", O_RDWR | O_CREAT); // will either open the file in Read+Write mode OR create it if it does not exist. (and then open it in R+W)
+    // also this is variable belongs to deque
+
+    if (locker < 0)
+    {
+        perror("cannot open file");
+        exit(1); // exits because this should'nt happen
+    }
 
     while ((n = recv(new_sock, &buffer, sizeof(buffer), 0)) > 0)
     {
@@ -224,13 +245,14 @@ void *sock_thread(void *arg) /* ***************** THREAD HANDLER ***************
         execute(args);
     }
 
+    close(locker);
     close(new_sock);
-    //pthread_exit(NULL);  //TODO: use processes lock AND UNLOCK with fcntl instead???
+    // should raise SIGCHLD on it's own after this line.
 }
 
 void sigchld_handler(int s)
 {
-    // waitpid() might overwrite errno, so we save and restore it:
+    //  waitpid() might overwrite errno, so we save and restore it:
     int saved_errno = errno;
 
     while (waitpid(-1, NULL, WNOHANG) > 0)
@@ -258,7 +280,7 @@ int main(void)
     deq->size = 0;
     deq->tail = NULL;
 
-    int sockfd, new_fd; // listen on sock_fd, new connection on new_fd
+    int sockfd, client_fd; // listen on sock_fd, new connection on client_fd
     struct addrinfo hints, *servinfo, *p;
     struct sockaddr_storage their_addr; // connector's address information
     socklen_t sin_size;
@@ -319,9 +341,10 @@ int main(void)
         exit(1);
     }
 
-    sa.sa_handler = sigchld_handler; // reap all dead processes
+    // TODO: if this does not work remove the '&'.
+    sa.sa_handler = &sigchld_handler; // will reap all 'Zombie' processes
     sigemptyset(&sa.sa_mask);
-    sa.sa_flags = SA_RESTART;
+    sa.sa_flags = SA_RESTART; // maybe add |SA_NOCLDSTOP if problems occur.
     if (sigaction(SIGCHLD, &sa, NULL) == -1)
     {
         perror("sigaction");
@@ -330,13 +353,13 @@ int main(void)
 
     printf("server: waiting for connections...\n");
 
-    pthread_t new_thread[10]; // We need to be able to server 10 connections at the same time
     int i = 0;
+    pid_t pid;
     while (1)
     { // main accept() loop
         sin_size = sizeof their_addr;
-        new_fd = accept(sockfd, (struct sockaddr *)&their_addr, &sin_size);
-        if (new_fd == -1)
+        client_fd = accept(sockfd, (struct sockaddr *)&their_addr, &sin_size);
+        if (client_fd == -1)
         {
             perror("accept");
             continue;
@@ -347,26 +370,20 @@ int main(void)
                   s, sizeof s);
         printf("server: got connection from %s\n", s);
 
-        // create a new thread, assign it to our thread array and send the thread_id and socket FD to out thread handler
-        //TODO: use processes lock AND UNLOCK with fcntl instead
-        /*
-        if (pthread_create(&new_thread[i++], NULL, sock_thread, &new_fd) != 0)
+        /* Creates a Child process, and let it run the functions while the Parent handles connections. */
+        if ((pid = fork()) == -1)
         {
-            printf("ERROR: Failed To Create Thread!\n");
+            perror("fork");
+            // exit(1);
         }
-        */
-        // Loop over our threads array and join all completed threads, freeing up resources
-        if (i >= 10)
+
+        if (pid == 0) // if this the CHILD Process
         {
-            i = 0;
-            while (i < 10)
-            {
-                //TODO: use processes lock AND UNLOCK with fcntl instead
-                /*
-                pthread_join(new_thread[i++], NULL);
-                */
-            }
-            i = 0;
+            sock_proc(&client_fd);
+        }
+        else // if this is the PARENT Process
+        {
+            usleep(1000);
         }
     }
 

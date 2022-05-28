@@ -18,6 +18,7 @@ typedef struct meta_data
     int free;
 } chunk;
 
+//TODO: is this error just intellisense?
 void *malloc(size_t _size);
 void *calloc(size_t nelem, size_t elsize);
 void free(void *ptr);

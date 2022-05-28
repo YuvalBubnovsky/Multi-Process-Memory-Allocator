@@ -9,7 +9,7 @@
 #include <sys/types.h>
 #include <netinet/in.h>
 #include <sys/socket.h>
-//#include <pthread.h>
+#include <pthread.h>
 
 #include <arpa/inet.h>
 
@@ -67,7 +67,7 @@ void *recv_thread_handler(void *arg)
         printf("%s\n", buffer);
         bzero(buffer, 2048);
     }
-    // pthread_exit(NULL); //TODO: use processes lock AND UNLOCK with fcntl instead
+    pthread_exit(NULL);
 }
 
 // sending data to server wll be in a seperate thread
@@ -84,7 +84,7 @@ void *send_thread_handler(void *arg)
         }
         sleep(1);
     }
-    // pthread_exit(NULL); //TODO: use processes lock AND UNLOCK with fcntl instead
+    pthread_exit(NULL);
 }
 
 int main(int argc, char *argv[])
@@ -143,14 +143,11 @@ int main(int argc, char *argv[])
     printf("client: connecting to %s\n", s);
     freeaddrinfo(servinfo); // all done with this structure
 
-    //TODO: use processes lock AND UNLOCK with fcntl instead
-    /*
     pthread_create(&new_thread[0], NULL, recv_thread_handler, &sockfd);
     pthread_create(&new_thread[1], NULL, send_thread_handler, &sockfd);
 
     pthread_join(new_thread[0], NULL);
     pthread_join(new_thread[1], NULL);
-    */
 
     close(sockfd);
 
