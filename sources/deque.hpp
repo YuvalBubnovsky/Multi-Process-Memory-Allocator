@@ -10,7 +10,6 @@
 #include <fcntl.h>
 #include <sys/mman.h>
 #include <unistd.h>
-#include "memory.h"
 
 typedef struct node *pnode;
 
@@ -89,7 +88,8 @@ void _print()
 
 void _PUSH(char* str)
 {
-    lock_mutex();
+    _lock.l_type = F_WRLCK;
+    fcntl(_locker, F_SETLKW, &_lock);
     if(_dm->curr==NULL){
         _dm->curr = _dm->first;
         strcpy(_dm->curr->value,str); 
@@ -100,37 +100,43 @@ void _PUSH(char* str)
         temp->next = _dm->curr;
         _dm->curr = temp;
     }
-    unlock_mutex();
+    _lock.l_type = F_UNLCK;
+    fcntl(_locker, F_SETLKW, &_lock);
 }
 
 char* _POP()
 {
-    lock_mutex();
+    _lock.l_type = F_WRLCK;
+    fcntl(_locker, F_SETLKW, &_lock);
     char* str;
     if (_dm->curr == NULL) {
-        return "\nQueue Is Empty!!\n";
+        return "\nQueue Is Empty!!";
 
     } else {
         str = _dm->curr->value;
         _dm->curr = _dm->curr->next;
     }
-    unlock_mutex();
+    _lock.l_type = F_UNLCK;
+    fcntl(_locker, F_SETLKW, &_lock);
     return str;
 }
 
-char* _TOP()
+const char* _TOP()
 {
     /**
      * @brief returns a pointer to the head of the deqeue
      *
      */
-    lock_mutex();
+    _lock.l_type = F_WRLCK;
+    fcntl(_locker, F_SETLKW, &_lock);
+
     if(_dm->curr==NULL){
         return "\nQueue Is Empty!!\n";
     }
-    char* str;
-    unlock_mutex();
-    return strcpy(str,_dm->curr->value);
+    //char* str;
+    _lock.l_type = F_UNLCK;
+    fcntl(_locker, F_SETLKW, &_lock);
+    return _dm->curr->value;
 }
 
 void _ENQUEUE(char* str)

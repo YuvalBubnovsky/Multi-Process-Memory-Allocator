@@ -14,7 +14,6 @@
 #include <signal.h>
 //#include <pthread.h>
 #include "deque.hpp" //includes <stdlib.h> !
-#include "memory.hpp"
 
 #define PORT "3490" // the port users will be connecting to
 
@@ -48,7 +47,7 @@ int TOP(char **args)
     printf("DEBUG: Got TOP Request\n");
 
     char buf[2048];
-    char* top = _TOP();
+    const char* top = _TOP();
 
     if (top == NULL)
     {
@@ -177,14 +176,6 @@ void *sock_proc(void *arg) /* ***************** PROCESS HANDLER ****************
     printf("DEBUG: New connection from %d\n", new_sock); // DEBUG ONLY
     sleep(1);
 
-    _locker = open("lock.txt", O_WRONLY | O_CREAT); // will either open the file in Read+Write mode OR create it if it does not exist. (and then open it in R+W)
-    // also this is variable belongs to deque
-
-    if (_locker < 0)
-    {
-        perror("cannot open file");
-        exit(1); // exits because this should'nt happen
-    }
 
     while ((n = recv(new_sock, &buffer, sizeof(buffer), 0)) > 0)
     {
@@ -299,7 +290,16 @@ int main(void)
 
     printf("server: waiting for connections...\n");
 
-    _dm = (pdm)mmap(NULL, sizeof(pdm), PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
+    _locker = open("lock.txt", O_RDWR | O_CREAT); // will either open the file in Read+Write mode OR create it if it does not exist. (and then open it in R+W)
+    // also this is variable belongs to deque
+
+    if (_locker < 0)
+    {
+        perror("cannot open file");
+        exit(1); // exits because this should'nt happen
+    }
+
+    _dm = (pdm)mmap(NULL, sizeof(pdm)*10000, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
     _dm->first=(pdeq)mmap(NULL, sizeof(pdeq)*10000, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
 
     pid_t pid;
